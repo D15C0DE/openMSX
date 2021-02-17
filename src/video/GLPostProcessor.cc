@@ -76,14 +76,34 @@ GLPostProcessor::~GLPostProcessor()
 
 void GLPostProcessor::initBuffers()
 {
-	// combined positions and texture coordinates
-	static constexpr vec2 pos_tex[4 + 4] = {
-		vec2(-1, 1), vec2(-1,-1), vec2( 1,-1), vec2( 1, 1), // pos
-		vec2( 0, 1), vec2( 0, 0), vec2( 1, 0), vec2( 1, 1), // tex
+	static constexpr vec2 pos[4] = {
+		vec2(-1, 1), vec2(-1,-1), vec2( 1,-1), vec2( 1, 1)
 	};
-	glBindBuffer(GL_ARRAY_BUFFER, vbo.get());
-	glBufferData(GL_ARRAY_BUFFER, sizeof(pos_tex), pos_tex, GL_STATIC_DRAW);
-	glBindBuffer(GL_ARRAY_BUFFER, 0);
+	static constexpr vec2 tex[4] = {
+		vec2( 0, 1), vec2( 0, 0), vec2( 1, 0), vec2( 1, 1)
+	};
+	glBindBuffer(GL_ARRAY_BUFFER, vbo[0].get());
+	glBufferData(GL_ARRAY_BUFFER, sizeof(pos), pos, GL_STATIC_DRAW);
+	glBindBuffer(GL_ARRAY_BUFFER, vbo[1].get());
+	glBufferData(GL_ARRAY_BUFFER, sizeof(tex), tex, GL_STATIC_DRAW);
+
+	vao.bind();
+	glBindBuffer(GL_ARRAY_BUFFER, vbo[0].get());
+	glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 0, nullptr);
+	glEnableVertexAttribArray(0);
+	glBindBuffer(GL_ARRAY_BUFFER, vbo[1].get());
+	glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 0, nullptr);
+	glEnableVertexAttribArray(1);
+	vao.unbind();
+
+	glowVAO.bind();
+	glBindBuffer(GL_ARRAY_BUFFER, vbo[0].get());
+	glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 0, nullptr);
+	glEnableVertexAttribArray(0);
+	glBindBuffer(GL_ARRAY_BUFFER, vbo[1].get());
+	glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 0, nullptr);
+	glEnableVertexAttribArray(1);
+	glowVAO.unbind();
 }
 
 void GLPostProcessor::createRegions()
@@ -179,6 +199,8 @@ void GLPostProcessor::paint(OutputSurface& /*output*/)
 		fbo[frameCounter & 1].push();
 	}
 
+	glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
+
 	for (auto& r : regions) {
 		//fprintf(stderr, "post processing lines %d-%d: %d\n",
 		//	r.srcStartY, r.srcEndY, r.lineWidth);
@@ -206,12 +228,6 @@ void GLPostProcessor::paint(OutputSurface& /*output*/)
 		if (deform == RenderSettings::DEFORM_3D) {
 			drawMonitor3D();
 		} else {
-			float x1 = (320.0f - float(horStretch)) / (2.0f * 320.0f);
-			float x2 = 1.0f - x1;
-			vec2 tex[4] = {
-				vec2(x1, 1), vec2(x1, 0), vec2(x2, 0), vec2(x2, 1)
-			};
-
 			gl::context->progTex.activate();
 			glUniform4f(gl::context->unifTexColor,
 			            1.0f, 1.0f, 1.0f, 1.0f);
@@ -219,20 +235,21 @@ void GLPostProcessor::paint(OutputSurface& /*output*/)
 			glUniformMatrix4fv(gl::context->unifTexMvp,
 			                   1, GL_FALSE, &I[0][0]);
 
-			glBindBuffer(GL_ARRAY_BUFFER, vbo.get());
-			glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 0, nullptr);
-			glEnableVertexAttribArray(0);
-
-			glBindBuffer(GL_ARRAY_BUFFER, stretchVBO.get());
-			glBufferData(GL_ARRAY_BUFFER, sizeof(tex), tex, GL_STREAM_DRAW);
+			vao.bind();
+			if (horStretch != 320.0f) {
+				float x1 = (320.0f - float(horStretch)) / (2.0f * 320.0f);
+				float x2 = 1.0f - x1;
+				vec2 tex[4] = {
+					vec2(x1, 1), vec2(x1, 0), vec2(x2, 0), vec2(x2, 1)
+				};
+				glBindBuffer(GL_ARRAY_BUFFER, stretchVBO.get());
+				glBufferData(GL_ARRAY_BUFFER, sizeof(tex), tex, GL_STREAM_DRAW);
+			} else {
+				glBindBuffer(GL_ARRAY_BUFFER, vbo[1].get());
+			}
 			glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 0, nullptr);
-			glEnableVertexAttribArray(1);
-
 			glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
-
-			glDisableVertexAttribArray(1);
-			glDisableVertexAttribArray(0);
-			glBindBuffer(GL_ARRAY_BUFFER, 0);
+			vao.unbind();
 		}
 		storedFrame = true;
 	} else {
@@ -370,22 +387,9 @@ void GLPostProcessor::drawGlow(int glow)
 	            1.0f, 1.0f, 1.0f, glow * 31 / 3200.0f);
 	mat4 I;
 	glUniformMatrix4fv(gl::context->unifTexMvp, 1, GL_FALSE, &I[0][0]);
-
-	glBindBuffer(GL_ARRAY_BUFFER, vbo.get());
-
-	const vec2* offset = nullptr;
-	glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 0, offset); // pos
-	offset += 4; // see initBuffers()
-	glEnableVertexAttribArray(0);
-
-	glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 0, offset); // tex
-	glEnableVertexAttribArray(1);
-
+	glowVAO.bind();
 	glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
-
-	glDisableVertexAttribArray(1);
-	glDisableVertexAttribArray(0);
-	glBindBuffer(GL_ARRAY_BUFFER, 0);
+	glowVAO.unbind();
 	glDisable(GL_BLEND);
 }
 
@@ -435,14 +439,7 @@ void GLPostProcessor::preCalcNoise(float factor)
 	GLint swizzleMask2[] = {GL_RED, GL_RED, GL_RED, GL_ONE};
 	glTexParameteriv(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_RGBA, swizzleMask2);
 #endif
-}
 
-void GLPostProcessor::drawNoise()
-{
-	if (renderSettings.getNoise() == 0.0f) return;
-
-	// Rotate and mirror noise texture in consecutive frames to avoid
-	// seeing 'patterns' in the noise.
 	static constexpr vec2 pos[8][4] = {
 		{ { -1, -1 }, {  1, -1 }, {  1,  1 }, { -1,  1 } },
 		{ { -1,  1 }, {  1,  1 }, {  1, -1 }, { -1, -1 } },
@@ -453,6 +450,16 @@ void GLPostProcessor::drawNoise()
 		{ {  1, -1 }, {  1,  1 }, { -1,  1 }, { -1, -1 } },
 		{ { -1, -1 }, { -1,  1 }, {  1,  1 }, {  1, -1 } }
 	};
+	glBindBuffer(GL_ARRAY_BUFFER, noiseVBO[0].get());
+	glBufferData(GL_ARRAY_BUFFER, sizeof(pos), pos, GL_STATIC_DRAW);
+}
+
+void GLPostProcessor::drawNoise()
+{
+	if (renderSettings.getNoise() == 0.0f) return;
+
+	// Rotate and mirror noise texture in consecutive frames to avoid
+	// seeing 'patterns' in the noise.
 	vec2 noise(noiseX, noiseY);
 	const vec2 tex[4] = {
 		noise + vec2(0.0f, 1.875f),
@@ -460,6 +467,7 @@ void GLPostProcessor::drawNoise()
 		noise + vec2(2.0f, 0.0f  ),
 		noise + vec2(0.0f, 0.0f  )
 	};
+	unsigned seq = frameCounter & 7;
 
 	gl::context->progTex.activate();
 
@@ -469,10 +477,14 @@ void GLPostProcessor::drawNoise()
 	mat4 I;
 	glUniformMatrix4fv(gl::context->unifTexMvp, 1, GL_FALSE, &I[0][0]);
 
-	unsigned seq = frameCounter & 7;
-	glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 0, pos[seq]);
-	glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 0, tex);
+	noiseVAO.bind();
+	glBindBuffer(GL_ARRAY_BUFFER, noiseVBO[0].get());
+	vec2* base = nullptr;
+	glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 0, base + seq * 4);
 	glEnableVertexAttribArray(0);
+	glBindBuffer(GL_ARRAY_BUFFER, noiseVBO[1].get());
+	glBufferData(GL_ARRAY_BUFFER, sizeof(tex), tex, GL_STATIC_DRAW);
+	glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 0, nullptr);
 	glEnableVertexAttribArray(1);
 
 	noiseTextureA.bind();
@@ -480,9 +492,8 @@ void GLPostProcessor::drawNoise()
 	glBlendEquation(GL_FUNC_REVERSE_SUBTRACT);
 	noiseTextureB.bind();
 	glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
+	noiseVAO.unbind();
 
-	glDisableVertexAttribArray(1);
-	glDisableVertexAttribArray(0);
 	glBlendEquation(GL_FUNC_ADD); // restore default
 	glDisable(GL_BLEND);
 }
@@ -541,14 +552,25 @@ void GLPostProcessor::preCalcMonitor3D(float width)
 	});
 
 	// upload calculated values to buffers
+	monitor3DVAO.bind();
 	glBindBuffer(GL_ARRAY_BUFFER, arrayBuffer.get());
 	glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices,
 	             GL_STATIC_DRAW);
+	char* base = nullptr;
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex),
+	                      base);
+	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex),
+	                      base + sizeof(vec3));
+	glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex),
+	                      base + sizeof(vec3) + sizeof(vec3));
+	glEnableVertexAttribArray(0);
+	glEnableVertexAttribArray(1);
+	glEnableVertexAttribArray(2);
+	glBindBuffer(GL_ARRAY_BUFFER, 0);
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, elementbuffer.get());
 	glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices,
 	             GL_STATIC_DRAW);
-	glBindBuffer(GL_ARRAY_BUFFER, 0);
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+	monitor3DVAO.unbind();
 
 	// calculate transformation matrices
 	mat4 proj = frustum(-1, 1, -1, 1, 1, 10);
@@ -571,27 +593,9 @@ void GLPostProcessor::preCalcMonitor3D(float width)
 void GLPostProcessor::drawMonitor3D()
 {
 	monitor3DProg.activate();
-
-	char* base = nullptr;
-	glBindBuffer(GL_ARRAY_BUFFER, arrayBuffer.get());
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, elementbuffer.get());
-	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex),
-	                      base);
-	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex),
-	                      base + sizeof(vec3));
-	glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex),
-	                      base + sizeof(vec3) + sizeof(vec3));
-	glEnableVertexAttribArray(0);
-	glEnableVertexAttribArray(1);
-	glEnableVertexAttribArray(2);
-
+	monitor3DVAO.bind();
 	glDrawElements(GL_TRIANGLE_STRIP, NUM_INDICES, GL_UNSIGNED_SHORT, nullptr);
-	glDisableVertexAttribArray(2);
-	glDisableVertexAttribArray(1);
-	glDisableVertexAttribArray(0);
-
-	glBindBuffer(GL_ARRAY_BUFFER, 0);
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+	monitor3DVAO.unbind();
 }
 
 } // namespace openmsx

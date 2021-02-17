@@ -94,11 +94,16 @@ private:
 	  */
 	RenderSettings::ScaleAlgorithm scaleAlgorithm;
 
+	gl::VertexArray monitor3DVAO;
 	gl::ShaderProgram monitor3DProg;
 	gl::BufferObject arrayBuffer;
 	gl::BufferObject elementbuffer;
-	gl::BufferObject vbo;
+	gl::VertexArray vao;
+	gl::VertexArray glowVAO;
+	gl::BufferObject vbo[2];
 	gl::BufferObject stretchVBO;
+	gl::VertexArray noiseVAO;
+	gl::BufferObject noiseVBO[2];
 
 	bool storedFrame;
 };

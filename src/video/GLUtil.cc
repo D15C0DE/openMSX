@@ -140,6 +140,8 @@ void Shader::init(GLenum type, std::string_view header, std::string_view filenam
 				"  precision mediump float;\n"
 				"#endif\n";
 		}
+	} else if (OPENGL_VERSION == OPENGL_3_3) {
+		source += "#version 330\n";
 	} else {
 		source += "#version 110\n";
 	}
@@ -296,6 +298,20 @@ BufferObject::BufferObject()
 BufferObject::~BufferObject()
 {
 	glDeleteBuffers(1, &bufferId); // ok to delete 0-buffer
+}
+
+
+// class VertexArray
+
+VertexArray::VertexArray()
+{
+	glGenVertexArrays(1, &bufferId);
+}
+
+VertexArray::~VertexArray()
+{
+	unbind();
+	glDeleteVertexArrays(1, &bufferId); // ok to delete 0-buffer
 }
 
 } // namespace gl

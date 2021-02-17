@@ -43,7 +43,6 @@ GLSnow::GLSnow(Display& display_)
 	};
 	glBindBuffer(GL_ARRAY_BUFFER, vbo[0].get());
 	glBufferData(GL_ARRAY_BUFFER, sizeof(pos), pos, GL_STATIC_DRAW);
-	glBindBuffer(GL_ARRAY_BUFFER, 0);
 }
 
 void GLSnow::paint(OutputSurface& /*output*/)
@@ -66,6 +65,7 @@ void GLSnow::paint(OutputSurface& /*output*/)
 	mat4 I;
 	glUniformMatrix4fv(gl::context->unifTexMvp, 1, GL_FALSE, &I[0][0]);
 
+	vao.bind();
 	glBindBuffer(GL_ARRAY_BUFFER, vbo[0].get());
 	const vec2* base = nullptr;
 	glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 0, base + 4 * cnt);
@@ -78,9 +78,7 @@ void GLSnow::paint(OutputSurface& /*output*/)
 
 	noiseTexture.bind();
 	glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
-	glDisableVertexAttribArray(1);
-	glDisableVertexAttribArray(0);
-	glBindBuffer(GL_ARRAY_BUFFER, 0);
+	vao.unbind();
 
 	display.repaintDelayed(100 * 1000); // 10fps
 }

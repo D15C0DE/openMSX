@@ -145,16 +145,12 @@ private:
   * The pixel buffer will be allocated in VRAM if possible, in main RAM
   * otherwise.
   * The pixel type is templatized T.
-  *
-  * Note: openGL ES 2.0 does not yet support this. So for now we always use the
-  * fallback implementation, maybe we can re-enable this when we switch to
-  * openGL ES 3.0.
   */
 template<typename T> class PixelBuffer
 {
 public:
-	PixelBuffer() = default;
-	//~PixelBuffer();
+	PixelBuffer();
+	~PixelBuffer();
 	PixelBuffer(PixelBuffer&& other) noexcept;
 	PixelBuffer& operator=(PixelBuffer&& other) noexcept;
 
@@ -205,7 +201,7 @@ private:
 
 	/** Handle of the GL buffer, or 0 if no GL buffer is available.
 	  */
-	//GLuint bufferId;
+	GLuint bufferId;
 
 	/** Number of pixels per line.
 	  */
@@ -218,33 +214,33 @@ private:
 
 // class PixelBuffer
 
-//template<typename T>
-//PixelBuffer<T>::PixelBuffer()
-//{
-//	glGenBuffers(1, &bufferId);
-//}
+template<typename T>
+PixelBuffer<T>::PixelBuffer()
+{
+	glGenBuffers(1, &bufferId);
+}
 
-//template<typename T>
-//PixelBuffer<T>::~PixelBuffer()
-//{
-//	glDeleteBuffers(1, &bufferId); // ok to delete '0'
-//}
+template<typename T>
+PixelBuffer<T>::~PixelBuffer()
+{
+	glDeleteBuffers(1, &bufferId); // ok to delete '0'
+}
 
 template<typename T>
 PixelBuffer<T>::PixelBuffer(PixelBuffer<T>&& other) noexcept
 	: allocated(std::move(other.allocated))
-	//, bufferId(other.bufferId)
+	, bufferId(other.bufferId)
 	, width(other.width)
 	, height(other.height)
 {
-	//other.bufferId = 0;
+	other.bufferId = 0;
 }
 
 template<typename T>
 PixelBuffer<T>& PixelBuffer<T>::operator=(PixelBuffer<T>&& other) noexcept
 {
 	std::swap(allocated, other.allocated);
-	//std::swap(bufferId,  other.bufferId);
+	std::swap(bufferId,  other.bufferId);
 	std::swap(width,     other.width);
 	std::swap(height,    other.height);
 	return *this;
@@ -255,33 +251,33 @@ void PixelBuffer<T>::setImage(GLuint width_, GLuint height_)
 {
 	width = width_;
 	height = height_;
-	//if (bufferId != 0) {
-	//	bind();
-	//	// TODO make performance hint configurable?
-	//	glBufferData(GL_PIXEL_UNPACK_BUFFER,
-	//	             width * height * 4,
-	//	             nullptr, // leave data undefined
-	//	             GL_STREAM_DRAW); // performance hint
-	//	unbind();
-	//} else {
+	if (bufferId != 0) {
+		bind();
+		// TODO make performance hint configurable?
+		glBufferData(GL_PIXEL_UNPACK_BUFFER,
+		             width * height * 4,
+		             nullptr, // leave data undefined
+		             GL_STREAM_DRAW); // performance hint
+		unbind();
+	} else {
 		allocated.resize(width * height);
-	//}
+	}
 }
 
 template<typename T>
 void PixelBuffer<T>::bind() const
 {
-	//if (bufferId != 0) {
-	//	glBindBuffer(GL_PIXEL_UNPACK_BUFFER, bufferId);
-	//}
+	if (bufferId != 0) {
+		glBindBuffer(GL_PIXEL_UNPACK_BUFFER, bufferId);
+	}
 }
 
 template<typename T>
 void PixelBuffer<T>::unbind() const
 {
-	//if (bufferId != 0) {
-	//	glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
-	//}
+	if (bufferId != 0) {
+		glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
+	}
 }
 
 template<typename T>
@@ -290,30 +286,30 @@ T* PixelBuffer<T>::getOffset(GLuint x, GLuint y)
 	assert(x < width);
 	assert(y < height);
 	auto offset = x + size_t(width) * y;
-	//if (bufferId != 0) {
-	//	return reinterpret_cast<T*>(offset * sizeof(T));
-	//} else {
+	if (bufferId != 0) {
+		return reinterpret_cast<T*>(offset * sizeof(T));
+	} else {
 		return &allocated[offset];
-	//}
+	}
 }
 
 template<typename T>
 T* PixelBuffer<T>::mapWrite()
 {
-	//if (bufferId != 0) {
-	//	return reinterpret_cast<T*>(glMapBuffer(
-	//		GL_PIXEL_UNPACK_BUFFER, GL_WRITE_ONLY));
-	//} else {
+	if (bufferId != 0) {
+		return reinterpret_cast<T*>(glMapBuffer(
+			GL_PIXEL_UNPACK_BUFFER, GL_WRITE_ONLY));
+	} else {
 		return allocated.data();
-	//}
+	}
 }
 
 template<typename T>
 void PixelBuffer<T>::unmap() const
 {
-	//if (bufferId != 0) {
-	//	glUnmapBuffer(GL_PIXEL_UNPACK_BUFFER);
-	//}
+	if (bufferId != 0) {
+		glUnmapBuffer(GL_PIXEL_UNPACK_BUFFER);
+	}
 }
 
 
@@ -461,6 +457,36 @@ public:
 		std::swap(bufferId, other.bufferId);
 		return *this;
 	}
+
+	[[nodiscard]] GLuint get() const { return bufferId; }
+
+private:
+	GLuint bufferId;
+};
+
+class VertexArray
+{
+public:
+	VertexArray();
+	~VertexArray();
+	VertexArray(VertexArray&& other) noexcept
+		: bufferId(other.bufferId)
+	{
+		other.bufferId = 0;
+	}
+	VertexArray& operator=(VertexArray&& other) noexcept {
+		std::swap(bufferId, other.bufferId);
+		return *this;
+	}
+
+	/** Bind this VertexArray. Must be called before glDraw*() and
+	  * glVertexAttribPointer() are used.
+	  */
+	void bind() const { glBindVertexArray(bufferId); }
+
+	/** Unbind this VertexArray.
+	  */
+	void unbind() const { glBindVertexArray(0); }
 
 	[[nodiscard]] GLuint get() const { return bufferId; }
 

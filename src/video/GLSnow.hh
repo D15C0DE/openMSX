@@ -20,6 +20,7 @@ public:
 
 private:
 	Display& display;
+	gl::VertexArray vao;
 	gl::BufferObject vbo[2];
 	gl::Texture noiseTexture;
 };

@@ -92,14 +92,6 @@ SDLGLVisibleSurface::SDLGLVisibleSurface(
 	getDisplay().getRenderSettings().getVSyncSetting().attach(vSyncObserver);
 	// set initial value
 	vSyncObserver.update(getDisplay().getRenderSettings().getVSyncSetting());
-
-#if OPENGL_VERSION == OPENGL_3_3
-	// We don't (yet/anymore) use VAO, but apparently it's required in openGL 3.3.
-	// Luckily this workaround is sufficient: create one global VAO and then don't care anymore.
-	GLuint vao;
-	glGenVertexArrays(1, &vao);
-	glBindVertexArray(vao);
-#endif
 }
 
 SDLGLVisibleSurface::~SDLGLVisibleSurface()

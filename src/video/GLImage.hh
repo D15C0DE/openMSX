@@ -29,6 +29,7 @@ private:
 	void initBuffers();
 
 private:
+	gl::VertexArray vao;
 	gl::BufferObject vbo[3];
 	gl::BufferObject elementsBuffer;
 	gl::Texture texture; // must come after size

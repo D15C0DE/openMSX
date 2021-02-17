@@ -122,9 +122,10 @@ void GLImage::initBuffers()
 {
 	// border
 	uint8_t indices[10] = {4, 0, 5, 1, 6, 2, 7, 3, 4, 0};
+	vao.bind();
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, elementsBuffer.get());
 	glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+	vao.unbind();
 }
 
 void GLImage::draw(OutputSurface& /*output*/, ivec2 pos, uint8_t r, uint8_t g, uint8_t b, uint8_t alpha)
@@ -153,6 +154,7 @@ void GLImage::draw(OutputSurface& /*output*/, ivec2 pos, uint8_t r, uint8_t g, u
 	glEnable(GL_BLEND);
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
+	vao.bind();
 	glBindBuffer(GL_ARRAY_BUFFER, vbo[0].get());
 	glBufferData(GL_ARRAY_BUFFER, sizeof(positions), positions, GL_STREAM_DRAW);
 
@@ -199,9 +201,7 @@ void GLImage::draw(OutputSurface& /*output*/, ivec2 pos, uint8_t r, uint8_t g, u
 		} else {
 			// border
 			if (borderSize > 0) {
-				glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, elementsBuffer.get());
 				glDrawElements(GL_TRIANGLE_STRIP, 10, GL_UNSIGNED_BYTE, nullptr);
-				glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
 			}
 
 			// interior
@@ -220,8 +220,7 @@ void GLImage::draw(OutputSurface& /*output*/, ivec2 pos, uint8_t r, uint8_t g, u
 		}
 		glDisableVertexAttribArray(0);
 	}
-	glDisableVertexAttribArray(0);
-	glBindBuffer(GL_ARRAY_BUFFER, 0);
+	vao.unbind();
 	glDisable(GL_BLEND);
 }
 
